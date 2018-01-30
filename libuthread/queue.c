@@ -22,6 +22,7 @@ struct Node* newNode(void *data)
 struct queue {
 	struct Node *front;
 	struct Node *rear;
+	int length;
 };
 
 queue_t queue_create(void)
@@ -30,6 +31,7 @@ queue_t queue_create(void)
 	if (myQ == NULL)
 	return myQ;
 	myQ->front = myQ->rear = NULL;
+	myQ->length = 0;
 	return myQ;
 }
 
@@ -58,6 +60,7 @@ int queue_enqueue(queue_t queue, void *data)
 	queue->rear->next = temp;
 	queue->rear = temp;
 	}
+	queue->length++;
 	return 0;
 }
 
@@ -69,6 +72,7 @@ int queue_dequeue(queue_t queue, void **data)
 	queue->front = queue->front->next;
 	if (queue->front == NULL)
 	queue->rear = NULL;
+	queue->length--;
 	return 0;
 }
 
@@ -84,6 +88,6 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 
 int queue_length(queue_t queue)
 {
-	/* TODO Phase 1 */
+	return queue->length;
 }
 
