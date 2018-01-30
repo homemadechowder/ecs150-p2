@@ -7,13 +7,13 @@ $(lib): queue.o
 	ar rcs $(lib) $^
 
 queue: queue.o
-	gcc $(CFLAGS) -o $@ $^
+	gcc $(CFLAGS) -c -o $@  $^
 
 #$(lib): queue.o
 #	ar rcs $(lib) $^
 
 queue.o: queue.c queue.h
-	gcc $(CFLAGS) -c  $@ $<
+	gcc $(CFLAGS) -c -o $@  $<
 
 
 clean:
