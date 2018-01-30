@@ -88,7 +88,6 @@ int queue_delete(queue_t queue, void *data)
 		free(temp);
 		if (queue->front == NULL)
 		        queue->rear = NULL;
-
 	}
 	else
 	{
