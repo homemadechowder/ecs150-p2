@@ -26,6 +26,13 @@ struct queue {
 	int length;
 };
 
+int main()
+{
+  return 0;
+}
+
+
+
 queue_t queue_create(void)
 {
 	queue_t myQ = (queue_t)malloc(sizeof(struct queue));
@@ -90,15 +97,24 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 {
 	//queue_t cur = queue;
 	int it = (*func)(queue, *data, arg);
-	
-	//while(it == 0 & cur != NULL)
-	//{
+	void* curData;
+	struct Node *curNode = newNode(*data);
+	curNode->next = queue->front->next;
+	  
+
+	while(it == 0  && curNode != NULL)
+	{
 		if(it == 1)
 			return 0;
-		else if(it != 0)
+		else if(it != 0) 
 			return -1; 
-		//cur
-	//}
+	
+		curNode = curNode->next;
+		if(curNode != NULL)
+			curData = curNode->data;
+
+		it = (*func)(queue, *data, curData); 
+	}
 	
 	return 0;
 	/* TODO Phase 1 */
@@ -109,3 +125,8 @@ int queue_length(queue_t queue)
 	return queue->length;
 }
 
+
+/*int main()
+{
+	return 0;
+}*/
