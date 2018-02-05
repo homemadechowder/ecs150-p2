@@ -114,7 +114,16 @@ void uthread_exit(int retval)
 
 int uthread_join(uthread_t tid, int *retval)
 {
-	/* TODO Phase 2 */
+	while (1)
+	{
+	
+	}
+	/* TODO Phase 2 
+	Execute an infinite loop in which:
+	If there are no more threads which are ready to run in the
+	system, break the loop and return
+	Otherwise simply yield to next available thread
+	*/
 	/* TODO Phase 3 */
 }
 
