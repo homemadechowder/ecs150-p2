@@ -27,6 +27,8 @@ typedef struct TCB {
 	uthread_ctx_t *ctx;  
 	uthread_t TID;
 	int state; 
+	int ret;
+	bool joined; // to make sure if it was collected or not
 };
 
 struct TCB *curBlock; // current running block
@@ -51,10 +53,32 @@ int getRunningBlock(queue_t lib, void* block, void* arg)
 	
 }
 
+int findTID(queue_t lib, void* block, void* arg)
+{
+
+	struct TCB *cur = (struct TCB *) block;
+	uthread_t tid = (uthread) arg;
+
+	if(cur->TID == arg)
+		return 1;
+
+	return 0;
+
+}
+
 
 
 void uthread_yield(void)
 {
+	if(curBlock->state != RUNNING)
+	{
+		// should it do something
+	}
+	else 
+	{
+		
+	}
+	
 	/* TODO Phase 2 */
 }
 
@@ -97,6 +121,7 @@ int uthread_create(uthread_func_t func, void *arg)
 		// gets its TID
 		tBlock->TID = library->length - 1;
 		tBlokc->state = READY;
+		tBlock->joined = false;
 		// return TID 
 		return tBlock->TID;
 	} 
@@ -109,15 +134,33 @@ int uthread_create(uthread_func_t func, void *arg)
 
 void uthread_exit(int retval)
 {
-	
+		if(curBlock->state != RUNNING)
+		{
+			uthread_self();
+		}
+
+		curBlock->ret = retval;
+		curBlock->state = FINISHED;
 }
 
 int uthread_join(uthread_t tid, int *retval)
 {
+	queue_t func = &findTID;
+	struct TCB * deadTCB;
+	int iter = queue_iterate(library, func, (void*)&tid , &deadTCB);
+	
+	if( tid == uthread_self() || tid <= 0 || !uthread_self()
+		||deadTCB->joined)
+		return -1;
+	
+	// once the thread is joined raise flag to 
+
 	while (1)
 	{
-	
+		return 0;
 	}
+
+	return 0;
 	/* TODO Phase 2 
 	Execute an infinite loop in which:
 	If there are no more threads which are ready to run in the
