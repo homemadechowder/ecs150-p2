@@ -34,7 +34,7 @@ typedef struct TCB {
 struct TCB *curBlock; // current running block
 
 
-int getRunningBlock(queue_t lib, void* block, void* arg)
+int get_running_block(queue_t lib, void* block, void* arg)
 {
 	/*
 	 * return 1 if we found current running process
@@ -53,7 +53,7 @@ int getRunningBlock(queue_t lib, void* block, void* arg)
 	
 }
 
-int findTID(queue_t lib, void* block, void* arg)
+int find_TID(queue_t lib, void* block, void* arg)
 {
 
 	struct TCB *cur = (struct TCB *) block;
@@ -65,27 +65,80 @@ int findTID(queue_t lib, void* block, void* arg)
 	return 0;
 
 }
+struct Node* find_node(queue_t lib, uthread_t tid)
+{
+	struct Node* cur = lib->front;
+
+	while(cur)
+	{
+		if(cur->data->TID == tid)
+			return cur;
+
+		cur = cur->next;
+	}
+	
+	return NULL;
+}
+
+/*
+ * 1 if ready threads left
+ * 0 otherwise
+ */
+
+int any_ready_threads(queue_t lib)
+{
+	struct Node* cur = lib->front;
+ 	while(cur)
+	{
+		if(cur->data->state == READY )
+			return 1;
+ 		
+		cur = cur->next;
+	}
+	
+	return 0;
+}
+
 
 
 
 void uthread_yield(void)
 {
+	struct Node* running, *temp;
+
 	if(curBlock->state != RUNNING)
+		uthread_self();
+	
+	running = find_node(library, curBlock->TID); // Node of running TCB
+	while(1)
 	{
-		// should it do something
-	}
-	else 
-	{
+		temp = running->next;
+		if(temp) 
+		{
+			if(temp->data->state == READY)
+			{
+				uthread_ctx_switch(curBlock->ctx, temp->data->ctx);
+				temp->data->state = RUNNING;
+				curBlock->state = READY;
+				curBlock = temp->data;
+				break;
+
+			}
+			
+			temp = temp->next;
+		}
+		else
+			temp = library->front;
 		
 	}
-	
+
 	/* TODO Phase 2 */
 }
 
 uthread_t uthread_self(void)
 {
 	void* arg;
-	queue_func_t func = &getRunningBlock;
+	queue_func_t func = &get_running_block;
 	// making block be the main thread
  	//curBlock = (struct TCB*) library->front->data;
   
@@ -107,7 +160,7 @@ int uthread_create(uthread_func_t func, void *arg)
 	if(library == NULL) // we are creating our main thread
 	{
 		// this is questionable ??????????
-		queue_enqueu(library, tBlock);
+		queue_enqueue(library, tBlock);
 		return 0; // TID of main is 0
 	}
 	
@@ -145,9 +198,9 @@ void uthread_exit(int retval)
 
 int uthread_join(uthread_t tid, int *retval)
 {
-	queue_t func = &findTID;
+	queue_t func = &find_TID;
 	struct TCB * deadTCB;
-	int iter = queue_iterate(library, func, (void*)&tid , &deadTCB);
+	int iter = queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
 	
 	if( tid == uthread_self() || tid <= 0 || !uthread_self()
 		||deadTCB->joined)
@@ -157,6 +210,10 @@ int uthread_join(uthread_t tid, int *retval)
 
 	while (1)
 	{
+		if(!any_ready_threads(library))
+			break
+
+		uthread_yield();
 		return 0;
 	}
 
