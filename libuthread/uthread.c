@@ -18,7 +18,7 @@
 #define READY 1
 #define RUNNING 2
 #define FINISHED 3
-#define WAITINIG 4
+#define WAITING 4
 
 
 queue_t library; // it is a pointer to the queue 
@@ -29,7 +29,9 @@ struct TCB {
 	uthread_t TID;
 	int state; 
 	int ret;
-	bool joined; // to make sure if it was collected or not
+	uthread_t collected; // a thread claimed it for collecting
+	uthread_t collecting; // in the process of joining with a thread
+
 };
 
 struct TCB *curBlock; // current running block
@@ -96,11 +98,11 @@ int  find_next(queue_t lib, void* tBlock, void*arg)
 }
 
 /*
- * 1 if ready threads left
- * 0 otherwise
+ * 1 if ready threads left 0 otherwise
+ * used in phase 2
  */
 
-int any_ready_threads(queue_t lib, void* next, void* arg)
+/*int any_ready_threads(queue_t lib, void* next, void* arg)
 {
 	struct TCB* cur = (struct TCB*) next;
  	
@@ -108,7 +110,8 @@ int any_ready_threads(queue_t lib, void* next, void* arg)
 			return 1;
 	
 	return 0;
-}
+}*/
+
 
 
 
@@ -117,8 +120,8 @@ void uthread_yield(void)
 {
 	//struct Node* running, *temp; 
 
-	if(curBlock->state != RUNNING && curBlock->state != FINISHED) 
-		uthread_self(); // if curBlock not running make point to running
+	//if(curBlock->state != RUNNING && curBlock->state != FINISHED) 
+	//	uthread_self(); // if curBlock not running make point to running
 		
 	queue_func_t find = &find_next;
 	int* flag = 0;	
@@ -131,9 +134,18 @@ void uthread_yield(void)
 
 	uthread_ctx_switch(curBlock->ctx, next->ctx);
 	next->state = RUNNING;
-	if(curBlock->state != FINISHED)
+	
+	if(curBlock->state == RUNNING) // if it's waiting or finished should't happen
 		curBlock->state = READY;
+
 	curBlock = next;
+	
+	if(curBlock->collecting != -1)
+	{
+		// don't know what to give it for int* retval so NULL for now
+		uthread_join(curBlock->collecting, NULL);
+		
+	}
 
 	/* TODO Phase 2 */
 }
@@ -161,10 +173,11 @@ int uthread_create(uthread_func_t func, void *arg)
 	if(library == NULL) // we are creating our main thread
 	{
 		struct TCB *mainBlock = (struct TCB*) malloc(sizeof(struct TCB));
-		// this is questionable ??????????
+		
 		queue_enqueue(library, mainBlock);
 		mainBlock->TID = queue_length(library) - 1;
-		mainBlock->joined = false;
+		mainBlock->collecting = -1;
+		mainBlock->collected = -1;
 		mainBlock->state = RUNNING;
 		curBlock = mainBlock; // main should be the running thread at this pt
 		
@@ -180,8 +193,9 @@ int uthread_create(uthread_func_t func, void *arg)
 		// gets its TID
 		tBlock->TID = queue_length(library) - 1;
 		tBlock->state = READY;
-		tBlock->joined = false; // flag for retrieved threads
-		// return TID 
+		tBlock->collecting = -1; // tid of the thread it is collecting
+		tBlock->collected = -1; // tid of the thread that wants to collect it
+		
 		return tBlock->TID;
 	} 
 	
@@ -201,42 +215,49 @@ void uthread_exit(int retval)
 
 		curBlock->ret = retval;  
 		curBlock->state = FINISHED;
+		
+		if(curBlock->collected != -1) // a thread want to join it is waiting
+		{
+			struct TCB* collectingBlock;
+			queue_func_t finding = &find_TID;
+
+			queue_iterate(library, finding, (void*)&curBlock->collected, 
+										(void**)&collectingBlock); // finds collecting thread
+			collectingBlock->state = READY;
+
+		}
+	
 		uthread_yield();
+		
 }
 
 int uthread_join(uthread_t tid, int *retval)
 {
 	queue_func_t func = &find_TID;
-	queue_func_t ready_threads = &any_ready_threads;
+	// queue_func_t ready_threads = &any_ready_threads;
 	struct TCB * deadTCB;
-	//void* arg;	
 
 	int iter = queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
 	
 	if( tid == uthread_self() || tid <= 0 || !uthread_self()
-		||deadTCB->joined || iter != 0)
+		||deadTCB->collected != -1 || iter != 0)
 		return -1;
-	
-	// once the thread is joined raise flag to 
 
-	while (1)
-	{
-		
-		int find_threads = queue_iterate(library, ready_threads, NULL, NULL); 
-		if (find_threads == -1) // iteration failed
-			break;
 	
-		uthread_yield();
+	if(deadTCB->state == FINISHED)
+	{
+		// deadTCB->ctx->uc_stack.ss_pp is our stack ptr
+		uthread_ctx_destroy_stack(deadTCB->ctx->uc_stack.ss_sp);
 		
+	}	
+	else if(deadTCB->state != FINISHED)
+	{
+	  curBlock->state = WAITING;
+		uthread_yield();
 	}
+	
 
 	return 0;
-	/* TODO Phase 2 
-	Execute an infinite loop in which:
-	If there are no more threads which are ready to run in the
-	system, break the loop and return
-	Otherwise simply yield to next available thread
-	*/
 	/* TODO Phase 3 */
 }
 
