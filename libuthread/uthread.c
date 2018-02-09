@@ -73,17 +73,24 @@ int find_TID(queue_t lib, void* block, void* arg)
  */
 
 // changed return type cannot accessed struct Node
-int  find_next(queue_t lib, voi)
+int  find_next(queue_t lib, void* tBlock, void*arg)
 {
-//	struct Node* cur = lib->front;
 
-/*	while(cur)
+	struct TCB* block = (struct TCB*) tBlock;
+	int* flag = (int*) arg;
+
+	if(block->TID == curBlock->TID)
 	{
-		if(cur->data->TID == tid)
+		*flag = 1;
+		return 0;
+	}
+	
+	if(*flag == 1)
+	{
+		if(block->state == READY)
 			return 1;
+	}
 
-		cur = cur->next;
-	}*/
 	
 	return 0;
 }
@@ -97,7 +104,7 @@ int any_ready_threads(queue_t lib, void* next, void* arg)
 {
 	struct TCB* cur = (struct TCB*) next;
  	
-		if(cur->->state == READY )
+		if(cur->state == READY )
 			return 1;
 	
 	return 0;
@@ -112,40 +119,30 @@ void uthread_yield(void)
 
 	if(curBlock->state != RUNNING) 
 		uthread_self(); // if curBlock not running make point to running
-	
-	//running = find_node(library, curBlock->TID); // Node of running TCB
-	
-	/*while(1)
-	{
-		temp = running->next;
-		if(temp) 
-		{
-			if(temp->data->state == READY)
-			{
-				uthread_ctx_switch(curBlock->ctx, temp->data->ctx);
-				temp->data->state = RUNNING;
-				curBlock->state = READY;
-				curBlock = temp->data;
-				break;
-
-			}
-			
-			temp = temp->next;
-		}
-		else // reached the end of the queue begin at front
-			temp = library->front;
 		
-	}*/
+	queue_func_t find = &find_next;
+	int* flag = 0;	
+	struct TCB* next; // block we want to yield to
+
+	int iter = queue_iterate(library, find, (void*) flag, (void**)&next);
+	
+	if(iter == -1) // need to look at front of queue
+		queue_iterate(library, find, (void*) flag, (void**)&next);
+
+	uthread_ctx_switch(curBlock->ctx, next->ctx);
+	next->state = RUNNING;
+	curBlock->state = READY;
+	curBlock = next;
 
 	/* TODO Phase 2 */
 }
 
 uthread_t uthread_self(void)
 {
-	void* arg;
+	//void* arg;
 	queue_func_t func = &get_running_block; // function needed to call iterate
   
-	int iter = queue_iterate(library, func, arg, NULL);
+	int iter = queue_iterate(library, func, NULL, NULL);
 	
 	if(iter == 0) // double cheking queue_iterate worked
 		return curBlock->TID; // curBlock should be running block
@@ -162,9 +159,14 @@ int uthread_create(uthread_func_t func, void *arg)
 	struct TCB *tBlock = (struct TCB*)malloc(sizeof(struct TCB));
 	if(library == NULL) // we are creating our main thread
 	{
+		struct TCB *mainBlock = (struct TCB*) malloc(sizeof(struct TCB));
 		// this is questionable ??????????
-		queue_enqueue(library, tBlock);
-		return 0; // TID of main is 0
+		queue_enqueue(library, mainBlock);
+		mainBlock->TID = queue_length(library) - 1;
+		mainBlock->joined = false;
+		mainBlock->state = RUNNING;
+		curBlock = mainBlock; // main should be the running thread at this pt
+		
 	}
 	
 	void *stack = uthread_ctx_alloc_stack();
@@ -175,7 +177,7 @@ int uthread_create(uthread_func_t func, void *arg)
 		// enqueue new thread
 		queue_enqueue(library, tBlock);
 		// gets its TID
-		tBlock->TID = library->length - 1;
+		tBlock->TID = queue_length(library) - 1;
 		tBlock->state = READY;
 		tBlock->joined = false; // flag for retrieved threads
 		// return TID 
@@ -201,10 +203,10 @@ void uthread_exit(int retval)
 
 int uthread_join(uthread_t tid, int *retval)
 {
-	queue_t func = &find_TID;
-	queue_t ready_threads = &any_ready_threads();
+	queue_func_t func = &find_TID;
+	queue_func_t ready_threads = &any_ready_threads;
 	struct TCB * deadTCB;
-	void* arg;	
+	//void* arg;	
 
 	int iter = queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
 	
@@ -217,7 +219,7 @@ int uthread_join(uthread_t tid, int *retval)
 	while (1)
 	{
 		
-		int find_threads = queue_iterate(library, ready_threads, arg, NULL); 
+		int find_threads = queue_iterate(library, ready_threads, NULL, NULL); 
 		if (find_threads == -1) // iteration failed
 			break;
 	

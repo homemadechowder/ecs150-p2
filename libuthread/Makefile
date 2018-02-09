@@ -8,7 +8,7 @@ all: $(lib)
 #	gcc $(CFLAGS) $< -o $@
 
 $(lib): queue.o uthread.o context.o
-	ar rcs $(lib) $< -l
+	ar rcs $(lib) $^ -l
 
 uthread.o: uthread.c context.h preempt.h queue.h uthread.h
 	gcc $(CFLAGS) $< -c
@@ -21,5 +21,5 @@ queue.o: queue.c queue.h
 
 
 clean:
-	rm -rf $(lib) queue.o queue
+	rm -rf $(lib) queue.o uthread.o context.o
 ## TODO: Phase 1.1

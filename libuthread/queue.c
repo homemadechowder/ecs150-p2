@@ -17,7 +17,7 @@ struct Node* newNode(void *data)
 	temp->data = data;
 	temp->next = NULL;
 	return temp;
-}
+};
 
 struct queue {
 	struct Node *front;
