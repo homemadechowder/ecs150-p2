@@ -97,25 +97,6 @@ int  find_next(queue_t lib, void* tBlock, void*arg)
 	return 0;
 }
 
-/*
- * 1 if ready threads left 0 otherwise
- * used in phase 2
- */
-
-/*int any_ready_threads(queue_t lib, void* next, void* arg)
-{
-	struct TCB* cur = (struct TCB*) next;
- 	
-		if(cur->state == READY )
-			return 1;
-	
-	return 0;
-}*/
-
-
-
-
-
 void uthread_yield(void)
 {
 	//struct Node* running, *temp; 
@@ -257,7 +238,7 @@ int uthread_join(uthread_t tid, int *retval)
 		// deadTCB->ctx->uc_stack.ss_pp is our stack ptr
 		*retval = deadTCB->ret;
 		uthread_ctx_destroy_stack(deadTCB->ctx->uc_stack.ss_sp);
-		
+		curBlock->collecting = -1;
 	}	
 	else if(deadTCB->state != FINISHED)
 	{
