@@ -156,7 +156,7 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 		curNode = curNode->next;		
 	}
 	
-	return 0;
+	return -1; // not found
 }
 
 int queue_length(queue_t queue)

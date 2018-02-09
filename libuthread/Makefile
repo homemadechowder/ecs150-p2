@@ -1,14 +1,20 @@
 # Target library
 lib := libuthread.a
 CFLAGS := -Wall -Werror -g
-all: $(lib) queue
+all: $(lib) 
 
 
-queue: queue.o
-	gcc $(CFLAGS) $< -o $@
+#uthread: queue.o uthread.o context.o 
+#	gcc $(CFLAGS) $< -o $@
 
-$(lib): queue.o
-	ar rcs $(lib) $^ -l
+$(lib): queue.o uthread.o context.o
+	ar rcs $(lib) $< -l
+
+uthread.o: uthread.c context.h preempt.h queue.h uthread.h
+	gcc $(CFLAGS) $< -c
+
+context.o: context.c context.h preempt.h uthread.h
+	gcc $(CFLAGS) $< -c
 
 queue.o: queue.c queue.h
 	gcc $(CFLAGS) $< -c
