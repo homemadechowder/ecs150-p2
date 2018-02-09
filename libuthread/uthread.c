@@ -117,7 +117,7 @@ void uthread_yield(void)
 {
 	//struct Node* running, *temp; 
 
-	if(curBlock->state != RUNNING) 
+	if(curBlock->state != RUNNING && curBlock->state != FINISHED) 
 		uthread_self(); // if curBlock not running make point to running
 		
 	queue_func_t find = &find_next;
@@ -131,7 +131,8 @@ void uthread_yield(void)
 
 	uthread_ctx_switch(curBlock->ctx, next->ctx);
 	next->state = RUNNING;
-	curBlock->state = READY;
+	if(curBlock->state != FINISHED)
+		curBlock->state = READY;
 	curBlock = next;
 
 	/* TODO Phase 2 */
@@ -192,13 +193,15 @@ int uthread_create(uthread_func_t func, void *arg)
 
 void uthread_exit(int retval)
 {
+		
 		if(curBlock->state != RUNNING) 
 		{
 			uthread_self(); // making sure curBlock is currently running
 		}
 
-		curBlock->ret = retval; 
+		curBlock->ret = retval;  
 		curBlock->state = FINISHED;
+		uthread_yield();
 }
 
 int uthread_join(uthread_t tid, int *retval)
