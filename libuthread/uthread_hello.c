@@ -18,7 +18,7 @@ int hello(void* arg)
 int main(void)
 {
 	uthread_t tid;
-	printf("going to create\n");
+
 	tid = uthread_create(hello, NULL);
 	uthread_join(tid, NULL);
 
