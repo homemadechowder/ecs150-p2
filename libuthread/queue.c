@@ -25,27 +25,6 @@ struct queue {
 	int length;
 };
 
-/*int main()
-{
- 	queue_t q;
-	int data[] = {1,2,3,4,5,6,7,8,9,10};
-	int i;
-	
-	q = queue_create();
-	struct Node* t;
-	for (i = 0; i < 10;i++)
-	{
-		queue_enqueue(q,&data[i]);
-		if(i == 0)
-			t = q->front;
-		else
-			t = t->next;
-		printf("in queue data[%d] = %d\n", i, *(int*)t->data);
-		
- 	}
-	return 0;
-}*/
-
 
 
 queue_t queue_create(void)
@@ -146,8 +125,9 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 		if(it == 1)
 		{
 			if (data != NULL)
-				data = &curData;
-
+			{
+				*data = curData;
+			}
 			return 0;
 		}
 		else if(it != 0) 
@@ -156,7 +136,7 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 		curNode = curNode->next;		
 	}
 	
-	return 0; 
+	return -1; // if func unsuccesful 
 }
 
 int queue_length(queue_t queue)

@@ -12,8 +12,7 @@
 #include "queue.h"
 #include "uthread.h"
 
-/* TODO Phase 2 */
-
+// states of thread
 #define INIT 0
 #define READY 1
 #define RUNNING 2
@@ -35,11 +34,12 @@ struct TCB {
 };
 
 struct TCB *curBlock; // current running block
-
+uthread_t TID; // global variable to store a tid when necessary
 
 	/*
-	 * return 1 if we found current running process
-	 * return 0 otherwise
+	 * function to find current running block
+	 * return 1 if successful
+	 * 0 to keep iterating in queueu_iterate
 	 */
 int get_running_block(queue_t lib, void* block, void* arg)
 {   	
@@ -54,13 +54,18 @@ int get_running_block(queue_t lib, void* block, void* arg)
 	return 0;
 }
 
+
+/*
+ * used to find specified block
+ * through its TID which is saved to global TID
+ */
+
 int find_TID(queue_t lib, void* block, void* arg)
 {
 
 	struct TCB *cur = (struct TCB *) block;
-	uthread_t tid = (intptr_t) arg; // uthread_t didn't compile
 
-	if(cur->TID == tid)
+	if(cur->TID == TID)
 		return 1;
 
 	return 0;
@@ -79,7 +84,7 @@ int  find_next(queue_t lib, void* tBlock, void*arg)
 
 	struct TCB* block = (struct TCB*) tBlock;
 	int* flag = (int*) arg;
-
+	printf("block tid is %d\n", block->TID);
 	if(block->TID == curBlock->TID)
 	{
 		*flag = 1;
@@ -103,10 +108,11 @@ void uthread_yield(void)
 	struct TCB* next; // block we want to yield to
 
 	int iter = queue_iterate(library, find, (void*)&flag, (void**)&next);
-
-	if(iter == -1) // need to look at front of queue
+	
+	if(iter != 0) // need to look at front of queue
 		queue_iterate(library, find, (void*)&flag, (void**)&next);
-
+	
+	
 	uthread_ctx_switch(curBlock->ctx, next->ctx);
 	next->state = RUNNING;
 	
@@ -118,7 +124,6 @@ void uthread_yield(void)
 	if(curBlock->collecting != -1)
 		uthread_join(curBlock->collecting, curBlock->retContain);
 		
-	/* TODO Phase 2 */
 }
 
 uthread_t uthread_self(void)
@@ -134,7 +139,6 @@ uthread_t uthread_self(void)
 	return 0; // since it is a number don't know if it will work
 		
 
-	/* TODO Phase 2 */
 }
 
 int uthread_create(uthread_func_t func, void *arg)
@@ -169,14 +173,12 @@ int uthread_create(uthread_func_t func, void *arg)
 		tBlock->state = READY;
 		tBlock->collecting = -1; // tid of the thread it is collecting
 		tBlock->collected = -1; // tid of the thread that wants to collect it
-		
 		return tBlock->TID;
 	} 
 	
 
 	return -1;
 
-	/* TODO Phase 2 */
 }
 
 void uthread_exit(int retval)
@@ -210,12 +212,11 @@ int uthread_join(uthread_t tid, int *retval)
 	queue_func_t func = &find_TID;
 	// queue_func_t ready_threads = &any_ready_threads;
 	struct TCB * deadTCB;
-
-	queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
+	TID = tid; // setting global to neede tid
+	int iter = queue_iterate(library, func, NULL ,(void**) &deadTCB);
 	
-	if( tid == curBlock->TID || tid <= 0 || iter != 0 || deadTCB->collected != -1)
+	if( tid == curBlock->TID || tid <= 0 || iter != 0 || deadTCB->collected <=  queue_length(library) )
 		return -1;
-	printf("not getting here\n");
 	if(deadTCB->state == FINISHED)
 	{
 		// deadTCB->ctx->uc_stack.ss_pp is our stack ptr
@@ -224,9 +225,11 @@ int uthread_join(uthread_t tid, int *retval)
 
 		uthread_ctx_destroy_stack(deadTCB->ctx->uc_stack.ss_sp);
 		curBlock->collecting = -1;
+		deadTCB->collected = curBlock->TID;
 	}	
 	else if(deadTCB->state != FINISHED)
 	{
+		deadTCB->collected = curBlock->TID; // deadTCB has been claimed for collection 
 		curBlock->state = WAITING;
 		curBlock->retContain = retval;
 		uthread_yield();
