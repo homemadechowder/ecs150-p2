@@ -18,7 +18,7 @@
 #define READY 1
 #define RUNNING 2
 #define FINISHED 3
-#define WAITINIG 4
+#define WAITING 4
 
 
 queue_t library; // it is a pointer to the queue 
@@ -28,10 +28,10 @@ struct TCB {
 	uthread_ctx_t *ctx;  
 	uthread_t TID;
 	int state; 
-	int ret;
-	bool joined; // to make sure if it was collected or not
-	//uthread_t collected; this is for phase 3
-	//uthread_t collecting;
+	int ret; // return value from exit
+	int* retContain; // Container in joining thread to receive exit value from joined (dead) thread
+	uthread_t collected; // a thread claimed it for collecting
+	uthread_t collecting; // in the process of joining with a thread
 };
 
 struct TCB *curBlock; // current running block
@@ -52,7 +52,6 @@ int get_running_block(queue_t lib, void* block, void* arg)
 	}
 
 	return 0;
-	
 }
 
 int find_TID(queue_t lib, void* block, void* arg)
@@ -97,46 +96,28 @@ int  find_next(queue_t lib, void* tBlock, void*arg)
 	return 0;
 }
 
-/*
- * 1 if ready threads left
- * 0 otherwise
- */
-
-int any_ready_threads(queue_t lib, void* next, void* arg)
-{
-	struct TCB* cur = (struct TCB*) next;
- 	
-		if(cur->state == READY )
-			return 1;
-	
-	return 0;
-}
-
-
-
-
 void uthread_yield(void)
 {
-	//struct Node* running, *temp; 
-
-	//if(curBlock->state != RUNNING && curBlock->state != FINISHED) 
-		//uthread_self(); // if curBlock not running make point to running
-		
 	queue_func_t find = &find_next;
-	int* flag = 0;	
+	int flag = 0;	
 	struct TCB* next; // block we want to yield to
 
-	int iter = queue_iterate(library, find, (void*) flag, (void**)&next);
-	
+	int iter = queue_iterate(library, find, (void*)&flag, (void**)&next);
+
 	if(iter == -1) // need to look at front of queue
-		queue_iterate(library, find, (void*) flag, (void**)&next);
+		queue_iterate(library, find, (void*)&flag, (void**)&next);
 
 	uthread_ctx_switch(curBlock->ctx, next->ctx);
 	next->state = RUNNING;
-	if(curBlock->state == RUNNING)
+	
+	if(curBlock->state == RUNNING) // if it's waiting or finished should't happen
 		curBlock->state = READY;
-	curBlock = next;
 
+	curBlock = next;
+	
+	if(curBlock->collecting != -1)
+		uthread_join(curBlock->collecting, curBlock->retContain);
+		
 	/* TODO Phase 2 */
 }
 
@@ -163,18 +144,19 @@ int uthread_create(uthread_func_t func, void *arg)
 	if(library == NULL) // we are creating our main thread
 	{
 		struct TCB *mainBlock = (struct TCB*) malloc(sizeof(struct TCB));
-		// this is questionable ??????????
-		library = queue_create();
+		library = queue_create();	
 		queue_enqueue(library, mainBlock);
 		mainBlock->TID = queue_length(library) - 1;
-		mainBlock->joined = false;
+		mainBlock->collecting = -1;
+		mainBlock->collected = -1;
 		mainBlock->state = RUNNING;
+		mainBlock->ctx = malloc(sizeof(uthread_ctx_t));
 		curBlock = mainBlock; // main should be the running thread at this pt
+		
 	}
-	printf("going to call init\n");	
-	void *stack = uthread_ctx_alloc_stack();
 	
-	tBlock->ctx = malloc(sizeof(uthread_ctx_t));	
+	void *stack = uthread_ctx_alloc_stack();
+	tBlock->ctx = malloc(sizeof(uthread_ctx_t));
 
 	create = uthread_ctx_init(tBlock->ctx, stack, func, arg);
 	
@@ -185,8 +167,9 @@ int uthread_create(uthread_func_t func, void *arg)
 		// gets its TID
 		tBlock->TID = queue_length(library) - 1;
 		tBlock->state = READY;
-		tBlock->joined = false; // flag for retrieved threads
-		// return TID 
+		tBlock->collecting = -1; // tid of the thread it is collecting
+		tBlock->collected = -1; // tid of the thread that wants to collect it
+		
 		return tBlock->TID;
 	} 
 	
@@ -206,42 +189,48 @@ void uthread_exit(int retval)
 
 		curBlock->ret = retval;  
 		curBlock->state = FINISHED;
+		
+		if(curBlock->collected != -1) // a thread want to join it is waiting
+		{
+			struct TCB* collectingBlock;
+			queue_func_t finding = &find_TID;
+
+			queue_iterate(library, finding, (void*)&curBlock->collected, 
+				(void**)&collectingBlock); // finds collecting thread
+			collectingBlock->state = READY;
+
+		}
+	
 		uthread_yield();
+		
 }
 
 int uthread_join(uthread_t tid, int *retval)
 {
 	queue_func_t func = &find_TID;
-	queue_func_t ready_threads = &any_ready_threads;
+	// queue_func_t ready_threads = &any_ready_threads;
 	struct TCB * deadTCB;
-	//void* arg;	
 
-	int iter = queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
+	queue_iterate(library, func, (void*)&tid ,(void**) &deadTCB);
 	
-	if( tid == uthread_self() || tid <= 0 || !uthread_self()
-		||deadTCB->joined || iter != 0)
+	if( tid == curBlock->TID || tid <= 0 || iter != 0 || deadTCB->collected != -1)
 		return -1;
-	
-	// once the thread is joined raise flag to 
-
-	while (1)
+	printf("not getting here\n");
+	if(deadTCB->state == FINISHED)
 	{
-		
-		int find_threads = queue_iterate(library, ready_threads, NULL, NULL); 
-		if (find_threads == -1) // iteration failed
-			break;
-	
-		uthread_yield();
-		
-	}
+		// deadTCB->ctx->uc_stack.ss_pp is our stack ptr
+		if(retval)
+			*retval = deadTCB->ret;
 
+		uthread_ctx_destroy_stack(deadTCB->ctx->uc_stack.ss_sp);
+		curBlock->collecting = -1;
+	}	
+	else if(deadTCB->state != FINISHED)
+	{
+		curBlock->state = WAITING;
+		curBlock->retContain = retval;
+		uthread_yield();
+	}
 	return 0;
-	/* TODO Phase 2 
-	Execute an infinite loop in which:
-	If there are no more threads which are ready to run in the
-	system, break the loop and return
-	Otherwise simply yield to next available thread
-	*/
-	/* TODO Phase 3 */
 }
 
