@@ -78,13 +78,12 @@ int find_TID(queue_t lib, void* block, void* arg)
  * ptr to next queue Node
  */
 
-// changed return type cannot accessed struct Node
+
 int  find_next(queue_t lib, void* tBlock, void*arg)
 {
 
 	struct TCB* block = (struct TCB*) tBlock;
 	int* flag = (int*) arg;
-	printf("block tid is %d\n", block->TID);
 	if(block->TID == curBlock->TID)
 	{
 		*flag = 1;
@@ -112,13 +111,10 @@ void uthread_yield(void)
 	if(iter != 0) // need to look at front of queue
 		queue_iterate(library, find, (void*)&flag, (void**)&next);
 	
-	
 	uthread_ctx_switch(curBlock->ctx, next->ctx);
-	next->state = RUNNING;
-	
 	if(curBlock->state == RUNNING) // if it's waiting or finished should't happen
 		curBlock->state = READY;
-
+	next->state = RUNNING;
 	curBlock = next;
 	
 	if(curBlock->collecting != -1)
@@ -136,7 +132,7 @@ uthread_t uthread_self(void)
 	if(iter == 0) // double cheking queue_iterate worked
 		return curBlock->TID; // curBlock should be running block
 
-	return 0; // since it is a number don't know if it will work
+	return 0; 
 		
 
 }
@@ -210,7 +206,6 @@ void uthread_exit(int retval)
 int uthread_join(uthread_t tid, int *retval)
 {
 	queue_func_t func = &find_TID;
-	// queue_func_t ready_threads = &any_ready_threads;
 	struct TCB * deadTCB;
 	TID = tid; // setting global to neede tid
 	int iter = queue_iterate(library, func, NULL ,(void**) &deadTCB);

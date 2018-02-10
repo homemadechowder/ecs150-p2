@@ -12,6 +12,7 @@
 int hello(void* arg)
 {
 	printf("Hello world!\n");
+	//uthread_exit(4);
 	return 0;
 }
 
