@@ -13,20 +13,37 @@
  * Frequency of preemption
  * 100Hz is 100 times per second
  */
-#define HZ 100
+#define HZ 100000 // in microseconds 
 
 void preempt_disable(void)
 {
-	/* TODO Phase 4 */
+	
 }
 
 void preempt_enable(void)
 {
-	/* TODO Phase 4 */
+	
 }
 
 void preempt_start(void)
 {
-	/* TODO Phase 4 */
+	struct sigaction sa;
+ 	struct itimerval timer;
+
+	memset(&sa, 0, sizeof (sa));
+ 	sa.sa_handler = &timer_handler;
+	sigaction (SIGVTALRM, &sa, NULL);
+
+ 	timer.it_value.tv_usec = HZ; // Counts down from 100ms
+	timer.it_interval.tv_usec = HZ; //Repeats every 100ms after first expiration
+	//Fire alarms of type SIGVTALRM 100/s	
+	setitimer(ITIMER_VIRTUAL, &timer, NULL);
+	
+	//Receive alarms of SIGVTALRM type 
+	timer_handler(SIGVTALRM)
+	{
+		uthread_yield();
+	}
+	
 }
 
