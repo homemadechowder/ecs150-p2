@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-
+#include <string.h>
 #include "preempt.h"
 #include "uthread.h"
 
@@ -14,6 +14,8 @@
  * 100Hz is 100 times per second
  */
 #define HZ 100000 // in microseconds 
+void timer_handler(int alarm);
+
 
 void preempt_disable(void)
 {
@@ -24,6 +26,7 @@ void preempt_enable(void)
 {
 	
 }
+
 
 void preempt_start(void)
 {
@@ -38,12 +41,15 @@ void preempt_start(void)
 	timer.it_interval.tv_usec = HZ; //Repeats every 100ms after first expiration
 	//Fire alarms of type SIGVTALRM 100/s	
 	setitimer(ITIMER_VIRTUAL, &timer, NULL);
-	
+	timer_handler(SIGVTALRM);	
 	//Receive alarms of SIGVTALRM type 
-	timer_handler(SIGVTALRM)
-	{
-		uthread_yield();
-	}
-	
+
+
 }
+
+void timer_handler(int alarm)
+{
+		uthread_yield();
+}
+
 

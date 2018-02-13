@@ -89,3 +89,9 @@ yield function since now join also called yield while our global block had a sta
 of waiting instead of running. 
 
 ### Phase 4:
+Work on the final phase was highly dependent on researching signals and timers, 
+constructs with which my partne and I had had little exposure up until then. 
+Following examples from the provide reference material, setitimer is used to send 
+SIGVTALRMS after and initial delay of 100,000 microseconds and then every 100,000
+microseonds afterwards. A signal handler function then calls uthread_yield() to
+interrupt a thread.  
